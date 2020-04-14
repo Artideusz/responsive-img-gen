@@ -1,0 +1,106 @@
+#!/usr/bin/python
+
+import subprocess, shlex
+import sys, getopt
+from os import path,makedirs,walk,sep
+from PIL import Image
+import re
+
+# Lista roznych rozmiarow pliku i ich suffixy
+configs = [
+        { "size": 20,  "suffix": '_xxs' },
+        { "size": 40,  "suffix": '_xs' },
+        { "size": 60,  "suffix": '_s' },
+        { "size": 80,  "suffix": '_m' }
+    ]
+
+
+def main():
+    #Pomocnicze zmienne
+    input = None
+    output_directory = None
+    recursive = False
+    imgs = None
+    #Sprawdzenie podanych opcji
+    try:
+        myopts, args = getopt.getopt(sys.argv[1:],"Ri:o:")
+    except getopt.GetoptError as err:
+        print(err)
+        usage()
+        sys.exit(2)
+    
+    #Przypisanie do zmiennych danych opcji
+    for o, a in myopts:
+        if o == '-i':
+            if(path.isfile(a)):
+                input = divideStringFile(a)[0]
+            elif(path.isdir(a) and recursive):
+                input = a
+            else:
+                print(f"File/Directory {a} does not exist!")
+                usage()
+                sys.exit(2)
+                # Close script
+        elif o == '-o':
+            if(not path.isdir(a)):
+                print(f"Creating new directory of {a}")
+                makedirs(a)
+            output_directory = a
+        elif o == '-R':
+            print("Recursive mode is on")
+            recursive = True
+    
+    if(not input or not output_directory):
+        usage()
+        sys.exit(2)
+    print("All parameters set! Converting...")
+    if(recursive):
+        for root, dirs, files in walk(input):
+            currDir = root[len(input)+1:]
+            print(currDir)
+            for file in files:
+                if(not any(config['suffix'] in file for config in configs)):
+                    if(not path.isdir(path.join(output_directory, currDir))):
+                        print(f"Creating directory {path.join(output_directory, currDir)}")
+                        #makedirs(path.join(output_directory, currDir))
+                    ftuple = divideStringFile(path.join(root, file))[0]
+                    imgs = makeResponsiveImgs(ftuple)
+                    for img in imgs:
+                        img['file'].save(path.join(output_directory,currDir,img['out_file']))
+                        print(f"{img['out_file']} has been saved to {path.join(output_directory,currDir)}")
+        pass
+    else:
+        imgs = makeResponsiveImgs(input)
+        for img in imgs:
+            img['file'].save(path.join(output_directory, img['out_file']))
+            print(f"{img['out_file']} has been saved to {output_directory}")
+
+def makeResponsiveImgs(filetuple):
+
+    img = Image.open(filetuple[0])
+    base_width = img.size[0]
+    base_height = img.size[1]
+
+    imgs = [] # Lista zdjec z suffixami
+
+    for config in configs:
+        width   = int( (base_width*config['size'])/100 )
+        height  = int( (base_height*config['size'])/100 )
+        if(width < 5 or height < 5):
+            print(f"Error: {filetuple[2] + config['suffix'] + '.' + filetuple[3]} is too small")
+        else:
+            imgs.append({
+                "file":     img.resize((width, height), Image.ANTIALIAS),
+                "out_file": filetuple[2] + config['suffix'] + "." + filetuple[3]
+            })
+            print(f"{filetuple[2] + config['suffix'] + '.' + filetuple[3]}: Created {config['suffix']} image - {width} X {height}")
+
+    return imgs
+
+def usage():
+    print("========== Usage: web-img-gen -R (Recursive mode - Able to use directory instead of file) -i <input file> -o <output directory> ==========")
+
+def divideStringFile(str):
+    return re.findall(r'((.*\/)(.+)\.(.+))', str)
+
+main()
