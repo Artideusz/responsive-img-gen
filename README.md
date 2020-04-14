@@ -5,6 +5,7 @@ This is a simple python script that creates 5 different images of different size
 Usage "web-img-gen -R &lt;Recursive mode, this enables the -i flag to use a directory&gt; -i &lt;File / Directory to be converted&gt; -o &lt;Directory to output the images to&gt;"
 
 The -o uses the folder structure of the -i flag, so:
+
     Let's say we have a input directory of a structure of:
     InputFolder/ -
                  |
