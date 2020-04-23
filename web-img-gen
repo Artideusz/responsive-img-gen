@@ -1,10 +1,11 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import subprocess, shlex
 import sys, getopt
 from os import path,makedirs,walk,sep
 from PIL import Image
 import re
+import json
 
 # Lista roznych rozmiarow pliku i ich suffixy
 configs = [
@@ -23,7 +24,7 @@ def main():
     imgs = None
     #Sprawdzenie podanych opcji
     try:
-        myopts, args = getopt.getopt(sys.argv[1:],"Ri:o:")
+        myopts, args = getopt.getopt(sys.argv[1:],"Ri:o:c:", ['recursive', 'input=', 'output=', 'config=','help'])
     except getopt.GetoptError as err:
         print(err)
         usage()
@@ -31,25 +32,40 @@ def main():
     
     #Przypisanie do zmiennych danych opcji
     for o, a in myopts:
-        if o == '-i':
+        if o in ('-i','--input'):
             if(path.isfile(a)):
                 input = divideStringFile(a)[0]
             elif(path.isdir(a) and recursive):
                 input = a
             else:
-                print(f"File/Directory {a} does not exist!")
+                print(f'File/Directory {a} does not exist!')
                 usage()
                 sys.exit(2)
                 # Close script
-        elif o == '-o':
+        elif o in ('-o','--output'):
             if(not path.isdir(a)):
                 print(f"Creating new directory of {a}")
                 makedirs(a)
             output_directory = a
-        elif o == '-R':
+        elif o in ('-R', '--recursive'):
             print("Recursive mode is on")
             recursive = True
-    
+        elif o in ('-c', '--config'):
+            print("Adding config...")
+            try:
+                with open(a) as file:
+                    global configs
+                    data = json.load(file)
+                    verify(data)
+                    configs = data
+            except Exception as e:
+                print(f"Error in config file! {e}")
+                usage()
+                exit(code=1)
+        elif o == '-h':
+            usage()
+            exit(code=0)
+
     if(not input or not output_directory):
         usage()
         sys.exit(2)
@@ -68,12 +84,17 @@ def main():
                     for img in imgs:
                         img['file'].save(path.join(output_directory,currDir,img['out_file']))
                         print(f"{img['out_file']} has been saved to {path.join(output_directory,currDir)}")
-        pass
     else:
         imgs = makeResponsiveImgs(input)
         for img in imgs:
             img['file'].save(path.join(output_directory, img['out_file']))
             print(f"{img['out_file']} has been saved to {output_directory}")
+
+
+def verify(json):
+    for config in json:
+        if "size" not in config or "suffix" not in config:
+            raise Exception("No attribute")
 
 def makeResponsiveImgs(filetuple):
 
@@ -98,7 +119,16 @@ def makeResponsiveImgs(filetuple):
     return imgs
 
 def usage():
-    print("========== Usage: web-img-gen -R (Recursive mode - Able to use directory instead of file) -i <input file> -o <output directory> ==========")
+    print("========== Usage: web-img-gen -i <input file> -o <output directory> ==========")
+    print("""
+    Additional Arguments:
+
+        -R  --recursive - Recursive mode, able to use a directory as the input
+        -c  --config=   - Config file for custom suffixes and sizes. Example config - [{ size: 50, suffix: "_half" },{ size: 10, suffix: "_small" }]
+        -i  --input=    - Input file or directory depending if recursive mode is turned on
+        -o  --output=   - Output directory
+        -h  --help      - Prints usage
+    """)
 
 def divideStringFile(str):
     return re.findall(r'((.*\/)(.+)\.(.+))', str)
