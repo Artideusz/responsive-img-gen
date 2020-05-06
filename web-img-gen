@@ -120,6 +120,7 @@ def loadConfigByPath(path):
             for config in configs:
                 if "size" not in config or "suffix" not in config:
                     raise Exception("Property missing")
+            configs = externalConfig
 
     except Exception as e:
         print(f"Error in config file! {e}")
