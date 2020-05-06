@@ -59,6 +59,16 @@ def main():
 
     print("All parameters set! Converting...")
 
+    if(not inputLocation):
+        print("no input location! exitting")
+        usage()
+        sys.exit(2)
+    
+    if(not outputLocation):
+        print("no output location! exitting")
+        usage()
+        sys.exit(2)
+
     if(recursiveMode):
         if(not path.isdir(inputLocation)):
             print("Recursive mode on a file! exitting")
