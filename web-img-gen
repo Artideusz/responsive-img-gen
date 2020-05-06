@@ -2,121 +2,102 @@
 
 import subprocess, shlex
 import sys, getopt
-from os import path,makedirs,walk,sep
-from PIL import Image
+from os import path, makedirs ,walk, sep
+from src.image_gen import generateResponsiveImages, saveResponsiveImage
+from src.util import splitFilePath, listOutFilePaths
 import re
 import json
 
-# Lista roznych rozmiarow pliku i ich suffixy
-configs = [
-        { "size": 20,  "suffix": '_xxs' },
-        { "size": 40,  "suffix": '_xs' },
-        { "size": 60,  "suffix": '_s' },
-        { "size": 80,  "suffix": '_m' }
-    ]
+# If there isnt any json file with the config, the script will use this instead
 
+defaultConfig = [
+    { "size": 20,       "suffix": '_xxs' },
+    { "size": 40,       "suffix": '_xs' },
+    { "size": 60,       "suffix": '_s' },
+    { "size": 80,       "suffix": '_m' },
+    { "size": [20,20],  "suffix": "-20x20"}
+]
+
+# The config used
+configs = defaultConfig
 
 def main():
-    #Pomocnicze zmienne
-    input = None
-    output_directory = None
-    recursive = False
-    imgs = None
-    #Sprawdzenie podanych opcji
+    inputLocation =     None
+    outputLocation =    None
+    recursiveMode =     False
+    imagesToSave =      None
+
     try:
-        myopts, args = getopt.getopt(sys.argv[1:],"Ri:o:c:", ['recursive', 'input=', 'output=', 'config=','help'])
+        myopts, args = getopt.getopt(
+            sys.argv[1:],
+            "Ri:o:c:",
+            ['recursive', 'input=', 'output=', 'config=','help'])
+
     except getopt.GetoptError as err:
         print(err)
         usage()
         sys.exit(2)
     
-    #Przypisanie do zmiennych danych opcji
     for o, a in myopts:
         if o in ('-i','--input'):
-            if(path.isfile(a)):
-                input = divideStringFile(a)[0]
-            elif(path.isdir(a) and recursive):
-                input = a
-            else:
-                print(f'File/Directory {a} does not exist!')
-                usage()
-                sys.exit(2)
-                # Close script
+            inputLocation = a
+
         elif o in ('-o','--output'):
-            if(not path.isdir(a)):
-                print(f"Creating new directory of {a}")
-                makedirs(a)
-            output_directory = a
+            outputLocation = a
+
         elif o in ('-R', '--recursive'):
             print("Recursive mode is on")
-            recursive = True
+            recursiveMode = True
+            
         elif o in ('-c', '--config'):
             print("Adding config...")
-            try:
-                with open(a) as file:
-                    global configs
-                    data = json.load(file)
-                    verify(data)
-                    configs = data
-            except Exception as e:
-                print(f"Error in config file! {e}")
-                usage()
-                exit(code=1)
+            loadConfigByPath(a)
+
         elif o == '-h':
             usage()
-            exit(code=0)
+            sys.exit(0)
 
-    if(not input or not output_directory):
-        usage()
-        sys.exit(2)
     print("All parameters set! Converting...")
-    if(recursive):
-        for root, dirs, files in walk(input):
-            currDir = root[len(input)+1:]
-            print(currDir)
-            for file in files:
-                if(not any(config['suffix'] in file for config in configs)):
-                    if(not path.isdir(path.join(output_directory, currDir))):
-                        print(f"Creating directory {path.join(output_directory, currDir)}")
-                        #makedirs(path.join(output_directory, currDir))
-                    ftuple = divideStringFile(path.join(root, file))[0]
-                    imgs = makeResponsiveImgs(ftuple)
-                    for img in imgs:
-                        img['file'].save(path.join(output_directory,currDir,img['out_file']))
-                        print(f"{img['out_file']} has been saved to {path.join(output_directory,currDir)}")
-    else:
-        imgs = makeResponsiveImgs(input)
-        for img in imgs:
-            img['file'].save(path.join(output_directory, img['out_file']))
-            print(f"{img['out_file']} has been saved to {output_directory}")
 
-
-def verify(json):
-    for config in json:
-        if "size" not in config or "suffix" not in config:
-            raise Exception("No attribute")
-
-def makeResponsiveImgs(filetuple):
-
-    img = Image.open(filetuple[0])
-    base_width = img.size[0]
-    base_height = img.size[1]
-
-    imgs = [] # Lista zdjec z suffixami
-
-    for config in configs:
-        width   = int( (base_width*config['size'])/100 )
-        height  = int( (base_height*config['size'])/100 )
-        if(width < 5 or height < 5):
-            print(f"Error: {filetuple[2] + config['suffix'] + '.' + filetuple[3]} is too small")
+    if(recursiveMode):
+        if(not path.isdir(inputLocation)):
+            print("Recursive mode on a file! exitting")
+            usage()
+            sys.exit(2)
         else:
-            imgs.append({
-                "file":     img.resize((width, height), Image.ANTIALIAS),
-                "out_file": filetuple[2] + config['suffix'] + "." + filetuple[3]
-            })
-            print(f"{filetuple[2] + config['suffix'] + '.' + filetuple[3]}: Created {config['suffix']} image - {width} X {height}")
+            if(not inputLocation.endswith('/')):
+                inputLocation = inputLocation + "/"
 
-    return imgs
+            if(not outputLocation.endswith('/')):
+                outputLocation = outputLocation + "/"
+            
+            filePaths = listOutFilePaths(inputLocation, outputLocation)
+            for filePath in filePaths:
+                if(not path.exists(filePath['outputLocation']['folder'])):
+                    makedirs(filePath['outputLocation']['folder'])
+                
+                imagesToSave = generateResponsiveImages(configs, filePath['inputLocation'])
+                
+                for image in imagesToSave:
+                    saveResponsiveImage(image, filePath['outputLocation']['folder'])
+    else:
+        if(not path.isfile(inputLocation)):            
+            print("The input is not a file! exitting")
+            usage()
+            sys.exit(2)
+
+        else:
+            if(not path.exists(outputLocation)):
+                print("Creating output directory...")
+                makedirs(outputLocation)
+
+            inputLocation = splitFilePath(inputLocation)
+            imagesToSave = generateResponsiveImages(configs, inputLocation)
+
+            for image in imagesToSave:
+                saveResponsiveImage(image, outputLocation)
+                
+    print("=================== DONE! ===================")
 
 def usage():
     print("========== Usage: web-img-gen -i <input file> -o <output directory> ==========")
@@ -124,13 +105,25 @@ def usage():
     Additional Arguments:
 
         -R  --recursive - Recursive mode, able to use a directory as the input
-        -c  --config=   - Config file for custom suffixes and sizes. Example config - [{ size: 50, suffix: "_half" },{ size: 10, suffix: "_small" }]
-        -i  --input=    - Input file or directory depending if recursive mode is turned on
-        -o  --output=   - Output directory
+        -c  --config=   - Config file for custom suffixes and sizes. Example config - [{ size: 50, suffix: "_half" },{ size: [10, 20], suffix: "_small" }]
+        -i  --input=    - input file or directory depending if recursive mode is turned on
+        -o  --output=   - Output directory (doesnt need to exist)
         -h  --help      - Prints usage
     """)
 
-def divideStringFile(str):
-    return re.findall(r'((.*\/)(.+)\.(.+))', str)
+def loadConfigByPath(path):
+    global configs
+
+    try:
+        with open(path) as file:
+            externalConfig = json.load(file)
+            for config in configs:
+                if "size" not in config or "suffix" not in config:
+                    raise Exception("Property missing")
+
+    except Exception as e:
+        print(f"Error in config file! {e}")
+        usage()
+        sys.exit(2)
 
 main()
