@@ -1,6 +1,6 @@
 # Responsive-img-gen
 
-This is a simple python script that creates 5 different images of different sizes for responsive web development.
+This is a simple python script that creates different images of different sizes for responsive web development.
 
 Usage "web-img-gen -R &lt;Recursive mode, this enables the -i flag to use a directory&gt; -i &lt;File / Directory to be converted&gt; -o &lt;Directory to output the images to&gt;"
 
